@@ -4,7 +4,24 @@ const bitfield = require('./bitfield');
 const superblockType = require('./types/superblock');
 const groupdescriptorType = require('./types/groupdescriptor');
 const inodeType = require('./types/inode');
-const createDirectoryEntries = require('./directoryentries');
+const directoryEntries = require('./directoryentries');
+
+const modes = {
+	// file format
+	S_IFREG: 0x8000, // regular file
+	S_IFDIR: 0x4000, // directory
+	// access rights
+	S_IRUSR: 0x0100, // user read
+	S_IWUSR: 0x0080, // user write
+	S_IXUSR: 0x0040, // user execute
+	S_IRGRP: 0x0020, // group read
+	S_IWGRP: 0x0010, // group write
+	S_IXGRP: 0x0008, // group execute
+	S_IROTH: 0x0004, // others read
+	S_IWOTH: 0x0002, // others write
+	S_IXOTH: 0x0001  // others execute
+	// (other flags not listed since not supported)
+};
 
 function allocNextFreeInode(f) {
 	for (let i = 0; i < f.gds.length; i++) {
@@ -65,7 +82,7 @@ function writeBlock(f, buffer, blockNumber, pad = false, padding = 0x00) {
 }
 
 function writeInode(f, inode, inodeNumber) {
-	let inodeBuf = fieldsToBuffer(inodeType, inode);
+	let inodeBuf = inodeType.fieldsToBuffer(inode);
 	let group = Math.floor(inodeNumber / f.s.inodes_per_group);
 	let index = inodeNumber % f.s.inodes_per_group;
 	let offset = (f.gds[group].bg_inode_table * f.blockSize) + (index - 1) * f.s.inode_size;
@@ -76,18 +93,6 @@ function readBlock(f, blockNumber) {
 	let buf = Buffer.alloc(f.blockSize);
 	fs.readSync(f.fd, buf, 0, f.blockSize, (blockNumber) * f.blockSize);
 	return buf;
-}
-
-function fieldsToBuffer(structType, fields) {
-	structType.allocate();
-	for (let k in fields) {
-		structType.fields[k] = fields[k];
-	}
-	return structType.buffer();
-}
-
-function fieldsListToBuffer(structType, fieldsList) {
-	return Buffer.concat(fieldsList.map(fl => fieldsToBuffer(structType, fl)));
 }
 
 function slicesToBlockList(slices) {
@@ -101,37 +106,111 @@ function slicesToBlockList(slices) {
 }
 
 function getInode(f, inodeNumber) {
-	// TODO:
-	// - load correct inode table block
-	// - use struct to get contents
+	let group = Math.floor(inodeNumber / f.s.inodes_per_group);
+	let index = inodeNumber % f.s.inodes_per_group;
+	let offset = (f.gds[group].bg_inode_table * f.blockSize) + (index - 1) * f.s.inode_size;
+	let buf = Buffer.alloc(f.s.inode_size);
+	fs.readSync(f.fd, buf, 0, f.s.inode_size, offset);
+	return inodeType.bufferToFields(buf);
 }
 
-function getInodeByPath(f, path) {
+function getInodeNumberByPathList(f, pathList, contextInodeNumber = null) {
+	if (contextInodeNumber === null) {
+		contextInodeNumber = 2; // 2: root inode number
+	}
+	if (pathList.length == 0) {
+		return contextInodeNumber;
+	}
+	let contextInode = getInode(f, contextInodeNumber);
+	if (! isDir(contextInode)) {
+		throw new Error('No directory');
+	}
+	let entries = loadDirectory(f, contextInode);
+	entries.forEach(entry => {
+		if (entry[1] === pathList[0]) {
+			pathList.shift();
+			return getInodeNumberByPathList(f, pathList, entry[0]);
+		}
+	});
+
+	// File doesn't exist
+	return false;
+}
+
+function getRootInode(f) {
+	return getInode(f, 2); // 2: root inode (constant)
+}
+
+function writeFileFromBuffer(f, path, buffer) {
+	// TODO: some stuff same in mkdir + writeFile?
 	if (path[0] !== '/') {
-		throw new Error('Path must always be absolute');
+		throw new Error('Only absoulte paths are supported');
 	}
 	let pathList = path.split('/');
 	pathList.shift();
-	return getInodeByPathList(f, pathList, getInode(f, 2)); // 2: root inode
-	// TODO
-	// must always begin with /; no relative dirs supported
-	// - recursively find inode (start at root inode == 2) :
-	//   - load inode
-	//   - load dir index
-	//   - search for name
-	//   - load inode --> return, if no path elements left
+	
+	let fileName = pathList.pop();
+
+	if (fileName.indexOf(0x00) !== -1) {
+		throw new Error('Character 0x00 not allowed in filenames');
+	}
+
+	let parentInodeNumber = getInodeNumberByPathList(f, pathList);
+	if (parentInodeNumber === false) {
+		throw new Error('Parent directory not found');
+	}
+
+	if (getInodeNumberByPathList(f, [fileName], parentInodeNumber) !== false) {
+		throw new Error('File already exists');
+	}
+
+	let parentInode = getInode(f, parentInodeNumber);
+	if (! isDir(parentInode)) {
+		throw new Error('Parent is no directory');
+	}
+
+	let time = Math.floor(Date.now() / 1000);
+	let slices = allocNextFreeBlocks(f, Math.ceil(buffer.length / f.blockSize));
+	let blocks = slices.reduce((sum, s) => sum + s[1], 0);
+	let inodeNumber = allocNextFreeInode(f);
+	let inode = {
+		mode: 0x81b4,
+		size: buffer.length,
+		atime: time,
+		ctime: time,
+		mtime: time,
+		links_count: 1,
+		blocks: (blocks * f.blockSize) / 512,
+		block: slicesToBlockList(slices)
+	};
+
+	let parentDirectory = loadDirectory(f, parentInode);
+	parentDirectory.push([inodeNumber, fileName]);
+	let parentDirectoryBuffer = directoryEntries.create(parentDirectory, f.blockSize);
+	writeBlock(f, parentDirectoryBuffer, parentInode.block[0], true);
+	writeInode(f, inode, inodeNumber);
+
+	let written = 0;
+	slices.forEach(s => {
+		// TODO: min(s[1]*blocksize, remainingBytes) (case when buffer to write is smaller than block / slice)
+		fs.writeSync(f.fd, buffer, written, s[1] * f.blockSize, s[0] * f.blockSize);	
+		written += s[1];
+	});
+	
+	// TODO: take care of case when multiple blocks need to be written
+
+	// TODO: when creating directories: update links_count in rootInode + write it
 }
 
-function getInodeByPathList(f, pathList, contextInode) {
-	if (pathList.length == 0) {
-		return contextInode;
-	}
-	// TODO
-	// - check if contextInode is directory
-	// - get directory listing
-	// - loop dir listing and search for pathList[0] as name
-	// - load corresponding inode
-	// - recurse
+function isDir(inode) {
+	return inode.mode & modes.S_IFDIR !== 0;
+}
+
+function loadDirectory(f, inode) {
+	let buf = readBlock(f, inode.block[0]);
+	// TODO: multiple blocks?
+	let entries = directoryEntries.readEntriesFromBuffer(f, buf);
+	return entries;
 }
 
 function mkdir(f, path) {
@@ -297,7 +376,7 @@ function initExt2(fd, partitionSize) {
 		[rootInodeNumber, '..'],
 		[lostAndFoundInodeNumber, 'lost+found']
 	];
-	let dirEntriesRootBuffer = createDirectoryEntries(dirEntriesRoot, f.blockSize);
+	let dirEntriesRootBuffer = directoryEntries.create(dirEntriesRoot, f.blockSize);
 	writeBlock(f, dirEntriesRootBuffer, rootInode.block[0], true); // TODO: case when multiple blocks need to be written
 
 	// Directory entries for /lost+found
@@ -306,18 +385,22 @@ function initExt2(fd, partitionSize) {
 		[lostAndFoundInodeNumber, '.'],
 		[rootInodeNumber, '..']
 	];
-	let dirEntriesLostAndFoundBuffer = createDirectoryEntries(dirEntriesLostAndFound, f.blockSize);
+	let dirEntriesLostAndFoundBuffer = directoryEntries.create(dirEntriesLostAndFound, f.blockSize);
 	writeBlock(f, dirEntriesLostAndFoundBuffer, lostAndFoundInode.block[0], true); // TODO: case when multiple blocks need to be written
-	let emptyDirEntriesBuffer = createDirectoryEntries([[0,'']], f.blockSize);
+	let emptyDirEntriesBuffer = directoryEntries.create([[0,'']], f.blockSize);
 	for (let i = 1; i < lostAndFoundPrereservedBlocks; i++) {
 		writeBlock(f, emptyDirEntriesBuffer, lostAndFoundInode.block[i], true); // TODO: case when multiple blocks need to be written
 	}
 
 	// TODO: in block bitmap of last block group take care to mark blocks that don't exist as used; or fs should always be multiple of f.s.blocks_per_group
 
+	// TODO: write file
+	writeFileFromBuffer(f, "/test.txt", Buffer.alloc(1024, 0x41));
+	writeFileFromBuffer(f, "/test2.txt", Buffer.concat([Buffer.alloc(1024, 0x58), Buffer.alloc(1024, 0x59)]));
+
 	// Write super block and block descriptors
-	let sbBuf = fieldsToBuffer(superblockType, f.s);
-	let gdsBuf = fieldsListToBuffer(groupdescriptorType, f.gds);
+	let sbBuf = superblockType.fieldsToBuffer(f.s);
+	let gdsBuf = groupdescriptorType.fieldsListToBuffer(f.gds);
 
 	f.gds.forEach((gd, idx) => {
 		writeBlock(f, gdsBuf, idx * f.s.blocks_per_group + 2, true);

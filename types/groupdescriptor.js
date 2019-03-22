@@ -1,4 +1,5 @@
 const Struct = require('struct');
+const structutils = require('./structutils');
 
 // Based on https://github.com/torvalds/linux/blob/master/fs/ext2/ext2.h
 
@@ -12,5 +13,7 @@ const GroupDescriptor = Struct('')
 	.word16Ule('bg_pad')
 	.array('bg_reserved', 3, 'word32Ule');
 
-module.exports = GroupDescriptor;
+module.exports = {
+	fieldsListToBuffer: fieldsList => structutils.fieldsListToBuffer(GroupDescriptor, fieldsList)
+}
 

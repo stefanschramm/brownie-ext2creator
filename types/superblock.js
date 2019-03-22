@@ -1,4 +1,5 @@
 const Struct = require('struct');
+const structutils = require('./structutils');
 
 // Based on https://github.com/torvalds/linux/blob/master/fs/ext2/ext2.h
 
@@ -54,5 +55,7 @@ const Superblock = Struct('')
 	.array('reserved', 193, 'word32Ule');	/* Padding to the end of the block */
 	// TODO: why do we need 193 instead of 190 to get to 1024? some problem above?
 
-module.exports = Superblock;
+module.exports = {
+	fieldsToBuffer: fields => structutils.fieldsToBuffer(Superblock, fields)
+}
 

@@ -2,7 +2,7 @@ const Struct = require('struct');
 
 // Based on https://github.com/torvalds/linux/blob/master/fs/ext2/ext2.h
 
-const createDirectoryEntries = (dirEntries, blockSize) => {
+function createDirectoryEntries (dirEntries, blockSize) {
 
 	if (dirEntries.length === 0) {
 		throw new Error('dirEntries cannot by empty - use [[0,""]] to create empty entries')
@@ -15,7 +15,7 @@ const createDirectoryEntries = (dirEntries, blockSize) => {
 			.word32Ule('inode')
 			.word16Ule('rec_len')
 			.word16Ule('name_len')
-			.charsnt('name', nameFieldLength);
+			.chars('name', nameFieldLength);
 		dir.allocate();
 		dir.set('inode', de[0]);
 		dir.set('rec_len', dir.length());
@@ -31,5 +31,23 @@ const createDirectoryEntries = (dirEntries, blockSize) => {
 	return Buffer.concat(dirEntryStructs.map(d => d.buffer()));
 };
 
-module.exports = createDirectoryEntries;
+function readEntriesFromBuffer(f, buf) {
+	let entries = [];
+	let offset = 0;
+	do {
+		let inode = buf.readUInt32LE(offset);
+		let rec_len = buf.readUInt16LE(offset + 4);
+		let name_len = buf.readUInt16LE(offset + 6);
+		let name = buf.toString('ascii', offset + 8, offset + 8 + name_len);
+		entries.push([inode, name]);
+		offset += rec_len;
+	} while (offset < f.blockSize);
+
+	return entries;
+}
+
+module.exports = {
+	create: createDirectoryEntries,
+	readEntriesFromBuffer: readEntriesFromBuffer
+}
 
