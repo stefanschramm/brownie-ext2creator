@@ -23,7 +23,7 @@ function allocNextFreeInode(f) {
 }
 
 function allocNextFreeBlocks(f, count) {
-	// TODO: doesn't work yet across group boundaries
+	// TODO: probably doesn't work yet across group boundaries
 	// TODO: check if real slicing works
 	let slices = [];
 	let allocated = 0;
@@ -53,7 +53,7 @@ function allocNextFreeBlocks(f, count) {
 function writeBlock(f, buffer, blockNumber, pad = false, padding = 0x00) {
 	fs.writeSync(f.fd, buffer, 0, buffer.length, blockNumber * f.blockSize);
 	if (buffer.length > f.blockSize) {
-		throw new Error("Buffer length too big");
+		throw new Error("Buffer too long");
 	}
 	if (buffer.length < f.blockSize) {
 		if (!pad) {
@@ -260,7 +260,7 @@ function initExt2(fd, partitionSize) {
 		atime: time,
 		ctime: time,
 		mtime: time,
-		links_count: 3, // TODO: ?
+		links_count: 3, // TODO: - /lost+found and / itself + 1?
 		blocks: f.blockSize / 512,
 		block: rootBlocks
 	};
@@ -283,7 +283,7 @@ function initExt2(fd, partitionSize) {
 		atime: time,
 		ctime: time,
 		mtime: time,
-		links_count: 2, // TODO: ?
+		links_count: 2, // TODO: ? - / and /lost+found itself?
 		blocks: (f.blockSize / 512) * lostAndFoundPrereservedBlocks,
 		block: lostAndFoundBlocks
 	};
@@ -298,7 +298,7 @@ function initExt2(fd, partitionSize) {
 		[lostAndFoundInodeNumber, 'lost+found']
 	];
 	let dirEntriesRootBuffer = createDirectoryEntries(dirEntriesRoot, f.blockSize);
-	writeBlock(f, dirEntriesRootBuffer, rootInode.block[0], true); // TODO: ensure that not multiple blocks need to be written
+	writeBlock(f, dirEntriesRootBuffer, rootInode.block[0], true); // TODO: case when multiple blocks need to be written
 
 	// Directory entries for /lost+found
 
@@ -307,13 +307,13 @@ function initExt2(fd, partitionSize) {
 		[rootInodeNumber, '..']
 	];
 	let dirEntriesLostAndFoundBuffer = createDirectoryEntries(dirEntriesLostAndFound, f.blockSize);
-	writeBlock(f, dirEntriesLostAndFoundBuffer, lostAndFoundInode.block[0], true); // TODO: ensure that not multiple blocks need to be written
+	writeBlock(f, dirEntriesLostAndFoundBuffer, lostAndFoundInode.block[0], true); // TODO: case when multiple blocks need to be written
 	let emptyDirEntriesBuffer = createDirectoryEntries([[0,'']], f.blockSize);
 	for (let i = 1; i < lostAndFoundPrereservedBlocks; i++) {
-		writeBlock(f, emptyDirEntriesBuffer, lostAndFoundInode.block[i], true); // TODO: ensure that not multiple blocks need to be written
+		writeBlock(f, emptyDirEntriesBuffer, lostAndFoundInode.block[i], true); // TODO: case when multiple blocks need to be written
 	}
 
-	// TODO: in block bitmap of last block group take care to mark blocks as used; or fs should always be multiple of f.s.blocks_per_group
+	// TODO: in block bitmap of last block group take care to mark blocks that don't exist as used; or fs should always be multiple of f.s.blocks_per_group
 
 	// Write super block and block descriptors
 	let sbBuf = fieldsToBuffer(superblockType, f.s);
