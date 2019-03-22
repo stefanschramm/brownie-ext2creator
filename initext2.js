@@ -261,11 +261,6 @@ function createDirectory(f, path) {
 	];
 	let dirEntriesNewBuffer = directoryEntries.create(dirEntriesNew, f.blockSize);
 	writeBlock(f, dirEntriesNewBuffer, inode.block[0], true); // TODO: case when multiple blocks need to be written??
-
-	// TODO:
-	// - reserve inode
-	// - write empty dir block
-	// - write entry in parent inode
 }
 
 function isDir(inode) {
