@@ -1,0 +1,11 @@
+{
+  "name": "brownie-ext2creator",
+  "version": "0.0.1",
+  "main": "index.js",
+  "author": "Stefan Schramm",
+  "license": "MIT",
+  "private": true,
+  "dependencies": {
+    "struct": "^0.0.12"
+  }
+}
