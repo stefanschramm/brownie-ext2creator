@@ -6,6 +6,7 @@ IMAGE_2="outtest.img"
 
 
 rm "${IMAGE_1}"
+rm "${IMAGE_2}"
 truncate -s "${PARTITION_SIZE}" "${IMAGE_1}"
 
 mke2fs -t ext2 -r 0 -m 0 -O ^ext_attr,^resize_inode,^dir_index,^filetype,^sparse_super -U "cafecafe-cafe-cafe-cafe-cafecafecafe" "${IMAGE_1}" &
