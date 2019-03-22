@@ -6,9 +6,11 @@ PARTITION_SIZE="$((1024*1024*${1}))"
 IMAGE_1="ext2.img"
 IMAGE_2="outtest.img"
 
-
 rm "${IMAGE_1}"
 rm "${IMAGE_2}"
+
+touch testfiles/*
+
 truncate -s "${PARTITION_SIZE}" "${IMAGE_1}"
 
 # Start at the same time to (maybe) get same creation timestamp

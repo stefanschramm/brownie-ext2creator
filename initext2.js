@@ -83,10 +83,14 @@ function writeBlock(f, buffer, blockNumber, pad = false, padding = 0x00) {
 
 function writeInode(f, inode, inodeNumber) {
 	let inodeBuf = inodeType.fieldsToBuffer(inode);
-	let group = Math.floor(inodeNumber / f.s.inodes_per_group);
+	let group = getGroupOfInode(f, inodeNumber);
 	let index = inodeNumber % f.s.inodes_per_group;
 	let offset = (f.gds[group].bg_inode_table * f.blockSize) + (index - 1) * f.s.inode_size;
 	fs.writeSync(f.fd, inodeBuf, 0, f.s.inode_size, offset);
+}
+
+function getGroupOfInode(f, inodeNumber) {
+	return Math.floor(inodeNumber / f.s.inodes_per_group);
 }
 
 function readBlock(f, blockNumber) {
@@ -141,8 +145,7 @@ function getRootInode(f) {
 	return getInode(f, 2); // 2: root inode (constant)
 }
 
-function writeFileFromBuffer(f, path, buffer) {
-	// TODO: some stuff same in mkdir + writeFile?
+function analyzeCreatePath(f, path) {
 	if (path[0] !== '/') {
 		throw new Error('Only absoulte paths are supported');
 	}
@@ -169,6 +172,20 @@ function writeFileFromBuffer(f, path, buffer) {
 		throw new Error('Parent is no directory');
 	}
 
+	return {
+		parentInodeNumber: parentInodeNumber,
+		parentInode: parentInode,
+		fileName: fileName
+	}
+}
+
+
+
+function writeFileFromBuffer(f, path, buffer) {
+	// TODO: some stuff same in mkdir + writeFile?
+
+	let createPath = analyzeCreatePath(f, path);
+
 	let time = Math.floor(Date.now() / 1000);
 	let slices = allocNextFreeBlocks(f, Math.ceil(buffer.length / f.blockSize));
 	let blocks = slices.reduce((sum, s) => sum + s[1], 0);
@@ -184,10 +201,10 @@ function writeFileFromBuffer(f, path, buffer) {
 		block: slicesToBlockList(slices)
 	};
 
-	let parentDirectory = loadDirectory(f, parentInode);
-	parentDirectory.push([inodeNumber, fileName]);
+	let parentDirectory = loadDirectory(f, createPath.parentInode);
+	parentDirectory.push([inodeNumber, createPath.fileName]);
 	let parentDirectoryBuffer = directoryEntries.create(parentDirectory, f.blockSize);
-	writeBlock(f, parentDirectoryBuffer, parentInode.block[0], true);
+	writeBlock(f, parentDirectoryBuffer, createPath.parentInode.block[0], true);
 	writeInode(f, inode, inodeNumber);
 
 	let written = 0;
@@ -202,6 +219,55 @@ function writeFileFromBuffer(f, path, buffer) {
 	// TODO: when creating directories: update links_count in rootInode + write it
 }
 
+function createDirectory(f, path) {
+
+	let createPath = analyzeCreatePath(f, path);
+	let time = Math.floor(Date.now() / 1000);
+	let slices = allocNextFreeBlocks(f, 1); // reserve only 1 block
+	let blocks = slices.reduce((sum, s) => sum + s[1], 0);
+	let inodeNumber = allocNextFreeInode(f);
+	let inode = {
+		mode: 0x41c0, // TODO
+		size: blocks * f.blockSize,
+		atime: time,
+		ctime: time,
+		mtime: time,
+		links_count: 1,
+		blocks: (blocks * f.blockSize) / 512,
+		block: slicesToBlockList(slices)
+	};
+
+	// Write entry in parent directory
+	let parentDirectory = loadDirectory(f, createPath.parentInode);
+	parentDirectory.push([inodeNumber, createPath.fileName]);
+	let parentDirectoryBuffer = directoryEntries.create(parentDirectory, f.blockSize);
+	writeBlock(f, parentDirectoryBuffer, createPath.parentInode.block[0], true);
+
+	writeInode(f, inode, inodeNumber);
+
+	// Increment link count in parent inode
+	createPath.parentInode.links_count++;
+	writeInode(f, createPath.parentInode, createPath.parentInodeNumber);
+
+	// Increment link count in group descriptor
+	let group = getGroupOfInode(f, inodeNumber);
+	f.gds[group].bg_used_dirs_count++;
+	// (gets written at the very end)
+
+	// Create new empty directory listing
+	let dirEntriesNew = [
+		[inodeNumber, '.'],
+		[createPath.parentInodeNumber, '..'],
+	];
+	let dirEntriesNewBuffer = directoryEntries.create(dirEntriesNew, f.blockSize);
+	writeBlock(f, dirEntriesNewBuffer, inode.block[0], true); // TODO: case when multiple blocks need to be written??
+
+	// TODO:
+	// - reserve inode
+	// - write empty dir block
+	// - write entry in parent inode
+}
+
 function isDir(inode) {
 	return inode.mode & modes.S_IFDIR !== 0;
 }
@@ -211,15 +277,6 @@ function loadDirectory(f, inode) {
 	// TODO: multiple blocks?
 	let entries = directoryEntries.readEntriesFromBuffer(f, buf);
 	return entries;
-}
-
-function mkdir(f, path) {
-	// TODO:
-	// - getInodeByPath (parent inode)
-	// - already exists?
-	// - reserve inode
-	// - write empty dir block
-	// - write entry in parent inode
 }
 
 function initExt2(fd, partitionSize) {
@@ -395,6 +452,7 @@ function initExt2(fd, partitionSize) {
 	// TODO: in block bitmap of last block group take care to mark blocks that don't exist as used; or fs should always be multiple of f.s.blocks_per_group
 
 	// TODO: write file
+	createDirectory(f, "/brownieplayer");
 	writeFileFromBuffer(f, "/test.txt", Buffer.alloc(1024, 0x41));
 	writeFileFromBuffer(f, "/test2.txt", Buffer.concat([Buffer.alloc(1024, 0x58), Buffer.alloc(1024, 0x59)]));
 
