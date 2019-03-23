@@ -1,5 +1,5 @@
 const assert = require('assert');
-const bitfield = require('../bitfield');
+const bitfield = require('../lib/bitfield');
 
 describe('bitfield', function() {
 	describe('#alloc()', function() {

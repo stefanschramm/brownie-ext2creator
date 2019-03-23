@@ -1,7 +1,10 @@
 {
   "name": "brownie-ext2creator",
   "version": "0.0.1",
-  "main": "index.js",
+  "main": "lib/ext2.js",
+  "bin": {
+    "ext2create": "./bin/ext2create.js"
+  },
   "scripts": {
     "test": "mocha || true"
   },
