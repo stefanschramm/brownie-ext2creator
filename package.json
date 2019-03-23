@@ -2,10 +2,16 @@
   "name": "brownie-ext2creator",
   "version": "0.0.1",
   "main": "index.js",
+  "scripts": {
+    "test": "mocha || true"
+  },
   "author": "Stefan Schramm",
   "license": "MIT",
   "private": true,
   "dependencies": {
     "struct": "^0.0.12"
+  },
+  "devDependencies": {
+    "mocha": "^6.0.2"
   }
 }
