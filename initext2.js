@@ -110,7 +110,7 @@ function slicesToBlockList(slices) {
 }
 
 function getInode(f, inodeNumber) {
-	let group = Math.floor(inodeNumber / f.s.inodes_per_group);
+	let group = getGroupOfInode(f, inodeNumber);
 	let index = inodeNumber % f.s.inodes_per_group;
 	let offset = (f.gds[group].bg_inode_table * f.blockSize) + (index - 1) * f.s.inode_size;
 	let buf = Buffer.alloc(f.s.inode_size);
@@ -130,12 +130,14 @@ function getInodeNumberByPathList(f, pathList, contextInodeNumber = null) {
 		throw new Error('No directory');
 	}
 	let entries = loadDirectory(f, contextInode);
-	entries.forEach(entry => {
+	for (let i = 0; i < entries.length; i++) {
+		let entry = entries[i];
 		if (entry[1] === pathList[0]) {
 			pathList.shift();
 			return getInodeNumberByPathList(f, pathList, entry[0]);
 		}
-	});
+
+	}
 
 	// File doesn't exist
 	return false;
@@ -236,7 +238,7 @@ function createDirectory(f, path) {
 		atime: time,
 		ctime: time,
 		mtime: time,
-		links_count: 1,
+		links_count: 1, // TODO: or 2? parent and itself?
 		blocks: (blocks * f.blockSize) / 512,
 		block: slicesToBlockList(slices)
 	};
@@ -268,7 +270,7 @@ function createDirectory(f, path) {
 }
 
 function isDir(inode) {
-	return inode.mode & modes.S_IFDIR !== 0;
+	return (inode.mode & modes.S_IFDIR) !== 0;
 }
 
 function loadDirectory(f, inode) {
@@ -366,8 +368,8 @@ function initExt2(fd, partitionSize) {
 			bitfield.alloc(bbmp, [f.s.blocks_per_group - 1, 1]);
 		}
 		writeBlock(f, bbmp, gd.bg_block_bitmap);
-		let ibmp = Buffer.alloc(f.blockSize, 0xff);
-		bitfield.free(ibmp, [0, f.s.inodes_per_group]);
+		let ibmp = Buffer.alloc(f.blockSize, 0x00);
+		bitfield.alloc(ibmp, [f.s.inodes_per_group, Math.floor((f.blockSize / f.s.inode_size) * f.s.inodes_per_group) - f.s.inodes_per_group]);
 		writeBlock(f, ibmp, gd.bg_inode_bitmap);
 	});
 	// TODO: multiple blocks for group descriptors possible/required?
@@ -452,8 +454,8 @@ function initExt2(fd, partitionSize) {
 
 	// TODO: write file
 	createDirectory(f, "/brownieplayer");
-	writeFileFromBuffer(f, "/test.txt", Buffer.alloc(1024, 0x41));
-	writeFileFromBuffer(f, "/test2.txt", Buffer.concat([Buffer.alloc(1024, 0x58), Buffer.alloc(1024, 0x59)]));
+	writeFileFromBuffer(f, "/brownieplayer/test.txt", Buffer.alloc(1024, 0x41));
+	writeFileFromBuffer(f, "/brownieplayer/test2.txt", Buffer.concat([Buffer.alloc(1024, 0x58), Buffer.alloc(1024, 0x59)]));
 
 	// Write super block and block descriptors
 	let sbBuf = superblockType.fieldsToBuffer(f.s);
