@@ -17,12 +17,6 @@ function allocSlices(buf, slices) {
 	});
 }
 
-function freeSlices(buf, slices) {
-	slices.forEach(s => {
-		alloc(buf, s);
-	});
-}
-
 function getFree(buf) {
 	let slices = getFreeSlices(buf, 1);
 	if (slices.length === 0) {
