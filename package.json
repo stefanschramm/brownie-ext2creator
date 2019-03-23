@@ -6,7 +6,7 @@
     "ext2create": "./bin/ext2create.js"
   },
   "scripts": {
-    "test": "mocha || true"
+    "test": "mocha"
   },
   "author": "Stefan Schramm",
   "license": "MIT",

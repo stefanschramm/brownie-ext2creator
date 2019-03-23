@@ -12,10 +12,7 @@ if (process.argv[3] == undefined) {
 }
 
 let fd = fs.openSync(process.argv[3], 'w+');
-
 let partitionSize = process.argv[2];
-ext2.initExt2(fd, partitionSize);
-
+ext2.initExt2(fd, partitionSize, 1024);
 fs.closeSync(fd)
-
 

@@ -16,7 +16,7 @@ truncate -s "${PARTITION_SIZE}" "${IMAGE_1}"
 # Start at the same time to (maybe) get same creation timestamp
 bin/ext2create.js "${PARTITION_SIZE}" "${IMAGE_2}" &
 PID_1=$!
-mke2fs -t ext2 -r 0 -m 0 -O ^ext_attr,^resize_inode,^dir_index,^filetype,^sparse_super -U "cafecafe-cafe-cafe-cafe-cafecafecafe" -d testfiles "${IMAGE_1}" &
+mke2fs -b 1024 -t ext2 -r 0 -m 0 -O ^ext_attr,^resize_inode,^dir_index,^filetype,^sparse_super -U "cafecafe-cafe-cafe-cafe-cafecafecafe" -d testfiles "${IMAGE_1}" &
 PID_2=$!
 
 wait $PID_1
