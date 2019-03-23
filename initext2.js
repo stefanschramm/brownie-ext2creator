@@ -154,6 +154,10 @@ function analyzeCreatePath(f, path) {
 	
 	let fileName = pathList.pop();
 
+	if (fileName.length === 0) {
+		throw new Error("Filename can't be empty");
+	}
+
 	if (fileName.indexOf(0x00) !== -1) {
 		throw new Error('Character 0x00 not allowed in filenames');
 	}
@@ -278,7 +282,7 @@ function initExt2(fd, partitionSize) {
 
 	let time = Math.floor(Date.now() / 1000);
 
-	// f contains all necessary structurs for the file system
+	// f contains all necessary structures for the file system
 	let f = {
 		fd: fd,  // file descriptor
 		s: {},   // superblock fields
