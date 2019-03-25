@@ -13,6 +13,25 @@ if (process.argv[3] == undefined) {
 
 let fd = fs.openSync(process.argv[3], 'w+');
 let partitionSize = process.argv[2];
-ext2.initExt2(fd, partitionSize, 1024);
-fs.closeSync(fd)
+let f = ext2.initExt2(fd, partitionSize, 1024);
+
+console.log("initialized");
+
+async function writeBrowniePlayerData(fd) {
+	console.log("Creating directory /brownieplayer...");
+	ext2.createDirectory(f, "/brownieplayer", {uid: 1000, gid: 1000, accessRights: 0755});
+	console.log("Writing file 1...");
+	await ext2.writeFileFromHostFileSystem(f, "/brownieplayer/test1.txt", "testfiles/brownieplayer/test1.txt");
+	console.log("Writing file 2...");
+	await ext2.writeFileFromHostFileSystem(f, "/brownieplayer/test2.txt", "testfiles/brownieplayer/test2.txt");
+	fs.closeSync(fd);
+}
+
+writeBrowniePlayerData(fd)
+	.then(() => {
+		console.log("Done!");
+	})
+	.catch(err => {
+		console.log("Problem: " + err);
+	});
 
