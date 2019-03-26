@@ -32,6 +32,12 @@ describe('ext2', function() {
 				fs.unlinkSync(tmpFileName);
 			})();
 		});
+		it('should initialize an ext2 filesystem and create a file with (> 12) data blocks that require indirect adressing (TODO)', function() {
+			// TODO
+		});
+		it('should initialize an ext2 filesystem and create a directory whose listings use multiple blocks and indirect adressing (TODO)', function() {
+			// TODO
+		});
 		it('should throw exception when block size is invalid', function() {
 			const tmpFileName = tmp.fileSync().name;
 			let fd = fs.openSync(tmpFileName, 'w+');
