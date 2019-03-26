@@ -21,9 +21,9 @@ async function writeBrowniePlayerData(fd) {
 	console.log("Creating directory /brownieplayer...");
 	ext2.createDirectory(f, "/brownieplayer", {uid: 1000, gid: 1000, accessRights: 0755});
 	console.log("Writing file 1...");
-	await ext2.writeFileFromHostFileSystem(f, "/brownieplayer/test1.txt", "testfiles/brownieplayer/test1.txt");
+	await ext2.writeFileFromHostFileSystem(f, "/brownieplayer/2kb.txt", "testfiles/brownieplayer/2kb.txt");
 	console.log("Writing file 2...");
-	await ext2.writeFileFromHostFileSystem(f, "/brownieplayer/test2.txt", "testfiles/brownieplayer/test2.txt");
+	await ext2.writeFileFromHostFileSystem(f, "/brownieplayer/1kb.txt", "testfiles/brownieplayer/1kb.txt");
 	fs.closeSync(fd);
 }
 
