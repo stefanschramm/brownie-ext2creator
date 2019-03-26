@@ -13,6 +13,19 @@ describe('ext2', function() {
 			assert.equal(1, 1); // TODO
 			fs.unlinkSync(tmpFileName);
 		});
+		it('should initialize an ext2 filesystem, create a directory and store some small files in it', function() {
+			let fd = fs.openSync(tmpFileName, 'w+');
+			let f = ext2.initExt2(fd, 1024 * 1024 * 8, 1024);
+
+			(async () => {
+				ext2.createDirectory(f, "/brownieplayer", {uid: 1000, gid: 1000, accessRights: 0755});
+				await ext2.writeFileFromHostFileSystem(f, "/brownieplayer/test1.txt", "testfiles/brownieplayer/test1.txt");
+				await ext2.writeFileFromHostFileSystem(f, "/brownieplayer/test2.txt", "testfiles/brownieplayer/test2.txt");
+				fs.closeSync(fd);
+				assert.equal(1, 1); // TODO
+				// fs.unlinkSync(tmpFileName);
+			});
+		});
 		it('should throw exception when block size is invalid', function() {
 			const tmpFileName = 'tmp/test.img';
 			let fd = fs.openSync(tmpFileName, 'w+');
