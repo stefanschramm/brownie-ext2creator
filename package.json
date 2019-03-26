@@ -15,6 +15,7 @@
     "struct": "^0.0.12"
   },
   "devDependencies": {
-    "mocha": "^6.0.2"
+    "mocha": "^6.0.2",
+    "tmp": "^0.1.0"
   }
 }
