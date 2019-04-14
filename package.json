@@ -1,6 +1,6 @@
 {
   "name": "brownie-ext2creator",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "main": "lib/ext2.js",
   "bin": {
     "ext2create": "./bin/ext2create.js"
