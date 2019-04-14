@@ -17,18 +17,24 @@ describe('ext2', function() {
 			fs.unlinkSync(tmpFileName);
 		});
 		it('should initialize an ext2 filesystem, create a directory and store some small files in it (test_8mb_1kb_one_dir_two_files.img)', function() {
+			// (need to set fixed times to prevent change of test results)
 			const time = 1553596983;
 			const tmpFileName = tmp.fileSync().name;
 			const fd = fs.openSync(tmpFileName, 'w+');
 			const f = ext2.initExt2(fd, 1024 * 1024 * 8, 1024, {time: time});
 			return (async () => {
 				ext2.createDirectory(f, "/brownieplayer", {uid: 1000, gid: 1000, accessRights: 0755, time: time});
-				await ext2.writeFileFromHostFileSystem(f, "/brownieplayer/2kb.txt", "testfiles/brownieplayer/2kb.txt");
-				await ext2.writeFileFromHostFileSystem(f, "/brownieplayer/1kb.txt", "testfiles/brownieplayer/1kb.txt");
+				const fileOptions = {
+					atime: time,
+					mtime: time,
+					ctime: time
+				};
+				await ext2.writeFileFromHostFileSystem(f, "/brownieplayer/2kb.txt", "testfiles/brownieplayer/2kb.txt", fileOptions);
+				await ext2.writeFileFromHostFileSystem(f, "/brownieplayer/1kb.txt", "testfiles/brownieplayer/1kb.txt", fileOptions);
 				fs.closeSync(fd);
 				const fileContent = fs.readFileSync(tmpFileName);
 				const md5 = crypto.createHash('md5').update(fileContent).digest('hex');
-				assert.equal(md5, 'a68cb47062a90d74d6adfd59967459c6');
+				assert.equal(md5, 'bf09a0d330d01f79bd4787aac4a4ea0d');
 				fs.unlinkSync(tmpFileName);
 			})();
 		});
