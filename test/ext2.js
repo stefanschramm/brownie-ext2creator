@@ -16,7 +16,7 @@ describe('ext2', function() {
 			assert.equal(md5, '7484882dfc43285b5e9eeffdc097d283');
 			fs.unlinkSync(tmpFileName);
 		});
-		it('should initialize an ext2 filesystem, create a directory and store some small files in it (test_8mb_1kb_one_dir_two_files.img)', function() {
+		it('should create a directory and store some small files (test_8mb_1kb_one_dir_two_files.img)', function() {
 			// (need to set fixed times to prevent change of test results)
 			const time = 1553596983;
 			const tmpFileName = tmp.fileSync().name;
@@ -37,6 +37,16 @@ describe('ext2', function() {
 				assert.equal(md5, 'bf09a0d330d01f79bd4787aac4a4ea0d');
 				fs.unlinkSync(tmpFileName);
 			})();
+		});
+		it('should initialize an ext2 filesystem at a specified offset (test_8mb_1kb_empty_5k_offset.img)', function() {
+			const tmpFileName = tmp.fileSync().name;
+			const fd = fs.openSync(tmpFileName, 'w+');
+			ext2.initExt2(fd, 1024 * 1024 * 8, 1024, {time: 1553596983, offset: 1024 * 5});
+			fs.closeSync(fd);
+			const fileContent = fs.readFileSync(tmpFileName);
+			const md5 = crypto.createHash('md5').update(fileContent).digest('hex');
+			assert.equal(md5, '6883d30498beb7623b18a8d0501e34ad');
+			fs.unlinkSync(tmpFileName);
 		});
 		/*
 		it('should initialize an ext2 filesystem and create a file with (> 12) data blocks that require indirect adressing (TODO)', function() {
